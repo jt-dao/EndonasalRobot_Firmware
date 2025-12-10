@@ -56,6 +56,8 @@ controlStop = threading.Event()
 controlStop.clear()
 cameraStop = threading.Event()
 cameraStop.clear()
+inputStop = threading.Event()
+inputStop.clear()
 forceStop = threading.Event()
 forceStop.clear()
 charStart = threading.Event()
@@ -276,22 +278,157 @@ def force_thread(force_sensor, q_output):
 def dumpQ(q, component, name, value, time):
     q.put((component,name,value,time))
 
+
+
+pattern_dict = {
+    # 'lf': [
+    #     [9, 20],
+    #     [[9, 20], [10,30]],
+    #     [9, 0],
+    #     [8, 20],
+    #     [[10, 0], [11,20]],
+    #     [[11, 0], [8,0]]
+    # ],
+    # 'ff': [
+    #     [2, 20],
+    #     [[2, 20], [3,20]],
+    #     # [3, 20],
+    #     [2, 0],
+    #     [1, 20],
+    #     [[3, 0], [4,20]],
+    #     [[4, 0], [1,0]]
+    # ],
+    'left_forward': [
+        [6, 20],
+        [7, 20],
+        [6, 0],
+        [5, 20],
+        [[7, 0], [8, 20]],
+        [[5, 0], [8, 0]]
+    ],
+    'right_forward': [
+        [[10, 20]],
+        [[11, 20]],
+        [[10, 0]],
+        [[9, 20]],
+        [[11,0 ], [2, 20]],
+        [[9, 0], [2, 0]]
+    ],
+    'left_backward': [
+         [5, 20],
+        [7, 20],
+        [5, 0],
+        [6, 20],
+        [[7, 0], [8, 20]],
+        [[6, 0], [8, 0]]
+    ],
+    'right_backward': [
+        [[9, 20]],
+        [[11, 20]],
+        [[9, 0]],
+        [[10, 20]],
+        [[11,0 ], [2, 20]],
+        [[10, 0], [2, 0]]
+    ],
+    'both_forward': [
+       [[6, 20], [10, 20]],
+        [[7, 20], [11, 20]],
+        [[6, 0], [10, 0]],
+        [[5, 20], [9, 20]],
+        [[11,0 ], [8, 20], [7, 0]],
+        [[5, 0], [8, 0], [9, 0]]
+    ],
+    'climb_up': [
+        [[4, 10],[5, 20], [9, 20], [6, 20], [10, 20]],
+        [[7, 20], [11, 20], [3, 13]],
+        [[6, 0], [10, 0]],
+        [[1, 20]],
+        [[7, 0], [11, 0], [8, 20]],
+        [[3, 0]], 
+        [[4, 20], [8, 20]],
+        [[4, 20]],
+        [[1, 0], [4, 10], [8, 0]],
+        [[1, 0]]
+    ],
+    'climb_up_linear': [
+        [[4, 0],[5, 20], [9, 20], [6, 20], [10, 20]],
+        [[7, 20], [11, 20], [3, 20], [2, 20]],
+        [[6, 0], [10, 0]],
+        [[1, 20]],
+        [[7, 0], [11, 0], [8, 20]],
+        [[3, 0], [2, 0]], 
+        [[4, 20], [8, 20]],
+        [[4, 20]],
+             [[4, 20]],
+                  [[4, 20]],
+        [[1, 0], [4, 0], [8, 0]],
+        [[1, 0]]
+    ]    
+    }
+
 def input_thread(q_output):
-    global regulator_vals,solenoid_vals, start_characterization
-    while True:
+    global regulator_vals,solenoid_vals, start_characterization, pattern_dict
+
+    def _apply_pattern_step(step_cmd):
+        """Apply a single pattern step and return its dwell time."""
+        print(f"  applying step: {step_cmd}")
+        if np.array(step_cmd).ndim == 2:
+            for reg, val in step_cmd:
+                regulator_vals[int(reg) - 1] = val
+            return 2
+        regulator_vals[int(step_cmd[0]) - 1] = step_cmd[1]
+        return 3 if step_cmd[1] == 0 else 1
+
+    def _run_pattern_sequence(selected_patterns, repetitions):
+        repetitions = max(int(repetitions), 1)
+        print(f"Running patterns {selected_patterns} for {repetitions} repetition(s)")
+        for _ in range(repetitions):
+            max_steps = max(len(pattern_dict[name]) for name in selected_patterns)
+            for step_idx in range(max_steps):
+                print(f" step {step_idx + 1} / {max_steps}")
+                step_durations = []
+                for pattern_name in selected_patterns:
+                    steps = pattern_dict.get(pattern_name, [])
+                    if step_idx < len(steps):
+                        print(f"  pattern '{pattern_name}' -> {steps[step_idx]}")
+                        step_durations.append(_apply_pattern_step(steps[step_idx]))
+                if step_durations:
+                    makePressureCmd()
+                    time.sleep(max(step_durations))
+
+    while not inputStop.is_set():
         try:
             input_values = input("Enter values for regulators or solenoids: ")
             val = input_values.split()
-            type = str(val[0])
-            numericValues = [float(val) for val in input_values.split()[1:]]
-            numericValues = np.array(numericValues)
-            if type == 's':
+            if not val:
+                continue
+
+            pattern_tokens = [tok for tok in val if tok in pattern_dict]
+            numeric_tokens = []
+            for tok in val:
+                if tok in pattern_dict:
+                    continue
+                try:
+                    numeric_tokens.append(float(tok))
+                except ValueError:
+                    continue
+
+            if pattern_tokens:
+                n_rep = numeric_tokens[0] if numeric_tokens else 1
+                _run_pattern_sequence(pattern_tokens, n_rep)
+                print("Pattern sequence done\n")
+                continue
+
+            cmd_type = str(val[0])
+            numericValues = np.array([float(v) for v in val[1:]])
+
+            if cmd_type == 's':
                 if len(numericValues) == 4:
                     solenoid_vals = np.copy(numericValues)
                 elif len(numericValues) == 2:
                     solenoid_vals[int(numericValues[0])-1] = numericValues[1]
                 print(solenoid_vals)
-            elif type == 'r':
+            elif cmd_type == 'r':
                 max_pressure = 30
                 if len(numericValues) == N_REGULATOR:
                     is_within_range = np.all((numericValues >= 0) & (numericValues <= max_pressure))
@@ -305,16 +442,17 @@ def input_thread(q_output):
                 makePressureCmd()
                 for i, val in enumerate(regulator_vals):
                     dumpQ(q_output, 'regulator', 'PWM{}'.format(i+1), val, time.time()-t0)
-            elif type == 'p':
+            elif cmd_type == 'p':
                 print('no pressure sensor')
                 # print('{0} {1} {2} {3} {4} {5} {6} {7}'.format(sensor1, sensor2, sensor3, sensor4, sensor5, sensor6, sensor7, sensor8))
-            elif type == 'start':
+            elif cmd_type == 'start':
                 charStart.set()
             else:
                 print("Invalid number or type of values")
 
         except ValueError:
             print("Invalid input. Please enter numeric values.")
+    
 
 N_REGULATOR = 12
 regulator_vals = np.array([0.] * N_REGULATOR)
@@ -450,6 +588,7 @@ def try_main(*args, **kwargs):
         cameraStop.set()
         forceStop.set()
         controlStop.set()
+        inputStop.set()
         sleep(3.0) # wait for threads to close
         ser.close()
     except OSError as error:

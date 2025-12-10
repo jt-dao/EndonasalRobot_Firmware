@@ -2,7 +2,7 @@ import time
 from run_stm_12 import *
 
 def control_loop(q_output, result_folder): 
-    global charStart, regulator_vals
+    global charStart, regulator_vals, pattern_dict
     i = 0
     state = StateStruct()
     print('control_loop- waiting for STM32READY\n')
@@ -14,6 +14,7 @@ def control_loop(q_output, result_folder):
     print('control_loop: started thread')
     time_per_step = 3
     n_loop = 100
+
     '''2-extender 
     [0, 0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0],
     [0, 20, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0],
