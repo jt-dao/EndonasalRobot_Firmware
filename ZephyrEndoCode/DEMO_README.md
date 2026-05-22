@@ -39,6 +39,8 @@ Use **single keypresses — no Enter**.
 | `3` | Solenoids — SOL1–SOL8 one at a time |
 | `4` | ADC — live pressure; `r` raw (0–255), `p` PSI, `v` volts |
 | `5` | All demos in sequence |
+| `p` | Pin Step — manually toggle PB10/PB12/PB14/PB15 (SPI pins) |
+| `m` | Motor — A4988 stepper test (EN=PA0, STEP=PC0, DIR=PC3) |
 | `0` | Stop outputs |
 | `h` | Menu |
 | `s` | Stop demo, back to menu |
@@ -51,7 +53,7 @@ pio run -e python -t upload
 
 ---
 
-## Option B — Python interactive mode (`run_stm_v2.py`)
+## Option B — Python interactive mode (`run_stm_12_v2.py`)
 
 Firmware **`main.c`** (PlatformIO **`env:python`**) listens on USART2 for text commands and streams telemetry.
 
@@ -68,7 +70,7 @@ Always use **`python`** unless you intentionally want the lab menu (**`lab_demo`
 
 ```bash
 cd ZephyrEndoCode/python_v2
-python run_stm_v2.py
+python run_stm_12_v2.py
 ```
 
 Ports: **`find_port.find_stm32_port()`** picks `usbmodem` / STM32 descriptions on macOS; you will be prompted if several match.
@@ -80,7 +82,7 @@ The MCU sends **`# STM32READY`** **once per boot** (via the print queue), after 
 The script arms a handshake (`controlStop`) and expects that line while receiving on the serial thread. If the board **already finished booting** before the handshake is ready, that line is easy to miss — **press the black RESET** on the Nucleo after starting the script, or trigger a reset from Python:
 
 - **`find_port.pulse_stlink_target_reset(ser)`** — toggles USB **DTR** (works on many ST-Link VCP setups). If nothing reboots, try  
-  **`STM32_RESET_INVERT=1 python run_stm_v2.py`**  
+  **`STM32_RESET_INVERT=1 python run_stm_12_v2.py`**  
   (see `find_port.py`).
 
 Depending on script revision you may also see **`foo`** sent as a probe and **`# parse_cmd FOO unrecognized`** — that only proves RX works; **success is recognizing `# STM32READY`**.
@@ -91,12 +93,13 @@ Boot logs may include **`# I2C scan:`** and **`#   Found device at 0x48`** when 
 
 | Command | Example | Effect |
 |---------|---------|--------|
-| `r <ch> <volts>` | `r 1 3.5` | Regulator channel → voltage setpoint (DAC scaled in firmware) |
+| `r <ch> <volts>` | `r 1 3.5` | Regulator channel (**1–16, 1-indexed**) → voltage setpoint (DAC scaled in firmware) |
 | `r <16 voltages>` | `r 0 2.5 5 ...` | All 16 channels |
 | `s <ch> <0\|1>` | `s 3 1` | Solenoid channel on/off |
 | `s <8 values>` | `s 0 1 0 ...` | All solenoids |
 | `dac <ch> <raw>` | `dac 1 32768` | Raw **16-bit** DAC (`DAC`/`DAC1`–`DAC16` on wire — see `NEW_PCB_README.md` for voltage span) |
 | `neo <mode>` | `neo 2` | NeoPixel: **0** off, **1** DAC status (default), **2** rainbow |
+| `m <motor> <mode>` | `m 5 1` | Stepper M1–M5 — mode **0**=off, **1**=one rotation, **2**=continuous |
 | `p` | `p` | Print latest pressures (`p_0`–`p_7`) from `stateQ` |
 | `prnwait <ms>` | `prnwait 100` | Telemetry period (**PRNWAIT** on MCU; default often **5000** ms until changed) |
 | `estop` | `estop` | ESTOP — PWM/solenoids/DAC outputs cleared per firmware |
@@ -128,7 +131,7 @@ Pass a **`control_loop(q_output, result_folder)`** into **`try_main`**. Wait unt
 
 ```python
 # python_v2/my_experiment.py
-from run_stm_v2 import try_main, controlStop, stateQ
+from run_stm_12_v2 import try_main, controlStop, stateQ
 import queue
 import time
 
@@ -152,7 +155,7 @@ if __name__ == "__main__":
 
 | Topic | v1 habit | v2 / new PCB |
 |--------|-----------|----------------|
-| Host code | `python/run_stm.py`, hard-coded **`COM3`** | **`python_v2/`**, **`find_port.py`** |
+| Host code | `python/run_stm_12_v2.py`, hard-coded **`COM3`** | **`python_v2/`**, **`find_port.py`** |
 | Telemetry names | **`adc8`…`adc15`** (internal ADC mindset) | **`p_0`…`p_7`** — **ADS7830**, **0–255**, **5 V ref** |
 | Scaling | e.g. **12-bit → 3.3 V** helpers | Re-derive pressure/voltage; not interchangeable |
 | Snapshot | All ADC channels updated together | **Round-robin** I2C read (~**8 ms** to refresh all **`p_*`** at **1 ms** loop) |
