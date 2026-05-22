@@ -35,6 +35,19 @@
 
 
 
+/* SPI2 for AD5679R DAC: SCK=PB10, NSS=PB12, MISO=PB14, MOSI=PB15
+ * Note: PB10 conflicts with I2C2 SCL on Nucleo default - I2C2 disabled below.
+ */
+&i2c2 {
+	status = "disabled";
+};
+
+&spi2 {
+	status = "okay";
+	pinctrl-0 = <&spi2_sck_pb10 &spi2_miso_pb14 &spi2_mosi_pb15>;
+	pinctrl-names = "default";
+};
+
 /* stuff for adc setup */
 &adc1 {
 	#address-cells = <1>;

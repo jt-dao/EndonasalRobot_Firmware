@@ -1,0 +1,58 @@
+STM32F446RE Nucleo-64 – Endonasal Project Pinout
+Updated with new pin assignments (12/2/2025)
+
+
+**GPIO PORT A**
+Chip  IO    Function                              ST Morpho connector        Project use / notes
+PA0         TIM5_CH1 / ADC123_IN0                 CN7-28                      EN_x
+PA2         USART2_TX                             CN5-2                       NO GO – console TX 
+PA3         USART2_RX                             CN5-1                       NO GO – console RX
+PA5         DAC2_OUT2 / SPI1_SCK / TIM8_CH1N      CN10-11 (LD2 LED)           NO GO – on-board LED
+PA11        TIM1_CH4                              CN10-14                     SOL8
+PA12        GPIOA_12                              CN10-12                     SOL5
+PA13        JTMS-SWDIO                            SWD/JTAG (CN7-13)           NO GO – debugger SWDIO
+PA14        JTCK-SWCLK                            SWD/JTAG (CN7-15)           NO GO – debugger SWCLK
+PA15        JTDI                                  CN7-17                      NO GO – JTAG TDI (debug)
+
+
+**GPIO PORT B**
+PB0         ADC12_IN8 / TIM3_CH3                  CN7-34                      M3_STEP
+PB1         ADC12_IN9 / TIM3_CH4                  CN10-24                     NEO1 (WS2812)
+PB2         TIM2_CH4 / GPIO                       CN10-22                     NO GO – HX711 PD_SCK
+PB3         JTDO / TRACESWO                       CN10-31 (= CN9-4)           NO GO – SWO debugger out
+PB4         NJTRST                                CN10-27 (= CN9-6)           NO GO – JTAG nRESET
+PB5         GPIO                                  CN10-29 (= CN9-5)           NO GO – HX711 DOUT
+PB6         TIM4_CH1                              CN10-17                     SOL7
+PB7         TIM4_CH2                              CN7-21                      M1_STEP
+PB8         TIM4_CH3 / I2C1_SCL (AF4)             CN10-3                      I2C1_SCL
+PB9         TIM4_CH4 / I2C1_SDA (AF4)             CN10-5                      I2C1_SDA
+PB10        TIM2_CH3 / I2C2_SCL / SPI2_SCK        CN10-25                     SPI2_SCK
+PB11        I2C2_SDA / USART3_RX / GPIO           CN7/CN10                    (free)
+PB12        SPI2_NSS / GPIO                       CN10-16                     SPI2_CS
+PB13        GPIOB_13                              CN10-30                     (free)
+PB14        TIM12_CH1 / SPI2_MISO                 CN10-28                     SPI2_MISO
+PB15        TIM12_CH2 / SPI2_MOSI                 CN10-26                     SPI2_MOSI
+
+
+**GPIO PORT C**
+PC0         ADC123_IN10                           CN7-38                      M5_STEP
+PC1         ADC123_IN11                           CN7-36                      M4_DIR
+PC2         ADC123_IN12                           CN7-35                      M4_STEP
+PC3         ADC123_IN13                           CN7-37                      M5_DIR
+PC4         ADC123_IN14                           CN10-34                     (free)
+PC5         ADC123_IN15                           CN10-6                      SOL4
+PC6         TIM8_CH1 / TIM3_CH1                   CN10-4                      SOL3
+PC7         TIM8_CH2 / TIM3_CH2 / SPI2_SCK        CN10-19                     SOL6
+PC8         TIM8_CH3 / TIM3_CH3                   CN10-2                      SOL2
+PC9         TIM8_CH4 / TIM3_CH4 / I2C3_SDA        CN10-1                      SOL1
+PC10        GPIO / SPI3_SCK                       CN7-1                       M2_DIR
+PC11        GPIO / SPI3_MISO                      CN7-2                       M1_DIR
+PC12        GPIO / SPI3_MOSI                      CN7-3                       M3_DIR
+PC13        GPIOC_13 (User Button)                CN7-23                      M2_STEP
+PC14        OSC32_IN                              CN7-25                      NO GO – low-speed ext clock
+PC15        OSC32_OUT                             CN7-27                      NO GO – low-speed ext clock
+
+
+**Power Pins**
+CN7-16       3.3V     3V3 rail from Nucleo
+CN7-18       5V       5V rail from Nucleo

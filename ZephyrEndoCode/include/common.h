@@ -49,7 +49,7 @@ struct cmd_struct_def {
 
 struct state_data_t {
     float time_stamp;
-    uint16_t adc[8];  // 8 adc channels 8..15
+    uint16_t adc[8];  // 8 I2C ADC channels (ADS7830 @ 0x48, 0-255 range)
     
     int32_t hx711;
     int32_t qdec3; // quadrature decoder using timer 3
@@ -57,6 +57,10 @@ struct state_data_t {
 };
 
 
+
+/* When set: PB13–PB15 must not be reconfigured by pwm stepper helpers — PB14/PB15 are SPI2
+ * MISO/MOSI for the AD5679R. pwm_init() used to force them GPIO after dac_init(), which broke DAC. */
+#define ENDONASAL_HAS_SPI_DAC 1
 
 /* GPIO Port B pin definitions
 GPIOB Pin 13, and 14 are direction for each motor
@@ -66,12 +70,10 @@ GPIOB Pin 13, and 14 are direction for each motor
 #define StepMotor1DirPin LL_GPIO_PIN_13
 #define StepMotor2DirPin LL_GPIO_PIN_14
 #define StepMotorFreePin LL_GPIO_PIN_15
-// PA12 = output 1
+// PA12 = SOL5 on new PCB (managed by solenoid.c, legacy alias kept for gpout.c redirect)
 #define Output1Pin LL_GPIO_PIN_12
-// ENDONASAL
-// PC8 output 2
+// PC8 = SOL2, PC9 = SOL1 on new PCB (managed by solenoid.c)
 //#define Output2Pin LL_GPIO_PIN_8
-// PC9 output 3
 //#define Output3Pin LL_GPIO_PIN_9
-// PC13 output 4
+// PC13 output 4 (only remaining gpout pin)
 #define Output4Pin LL_GPIO_PIN_13

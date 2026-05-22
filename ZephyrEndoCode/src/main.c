@@ -16,18 +16,18 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+LIABILITY, IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE. */
 
 
-/* main.c - starts up threads in an orderly fashion 
+/* main.c - starts up threads in an orderly fashion
 * then basically sleeps .
 * started April 2023 by R. Fearing copying from EE192 2021 skeleton
 * converting FreeRTOS to Zephyr RTOS
 *
 *  modified to have 12 PWM channel for pressure regulators
-* and using PC6, PC7, PC8, PC9 for PWM 
+* and using PC6, PC7, PC8, PC9 for PWM
 */
 
 /*
@@ -40,11 +40,6 @@ SOFTWARE. */
 #include <sys/printk.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <console/console.h>
-
-//#include <device.h>
-//#include <devicetree.h>
-//#include <drivers/gpio.h>
 
 #include "common.h"
 
@@ -70,70 +65,70 @@ extern void thread_info(void);
 extern void start_control(void);
 extern void uart_interrupt_init();
 extern void start_uart_input(void);
-extern void start_print_state(void); 
+extern void start_print_state(void);
+extern void solenoid_init(void);
+extern void i2c_adc_init(void);
+extern void i2c_adc_scan(void);
+extern void neopixel_init(void);
+extern void motor_init(void);
 
 
 void main(void)
-{ 	long a = 0;
+{
+	long a = 0;
 	char string[80];
-	// use # as first character for comment to ignore
-	printk("# Endonasal Branch 7/17/24 from main()\n");
- 
-  	if(led_init())
-  		printk("# led_init: success. Wait for LED blink\n");
+	printk("# Endonasal v2 PCB - Python integration from main()\n");
+
+	if(led_init())
+		printk("# led_init: success. Wait for LED blink\n");
 	else
 		printk("# led_init: failed.\n");
- 
-  	while(a < 50)
-  	{ 	led_toggle();
-  		k_msleep(SLEEP_TIME_MS/10);
+
+	while(a < 50)
+	{	led_toggle();
+		k_msleep(SLEEP_TIME_MS/10);
 		a = a + 1;
 	}
-  
-   	start_print_thread();
+
+	start_print_thread();
 	printq_add("# printq test message- hello from main.c \n");
 	snprintf(string, 80, "# Clock cycles per second %d\n",CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC);
 	printq_add(string);
 	k_msleep(250); // suspend main() to allow print to run
-	// snprintf(string, 80, "# float number %f\n", 3.14159);
-	// printk("%s", string);
-	/* Peripheral initialization */
-    dac_init();
-    adc_init();
-//	adc_test();
-  	pwm_init();
-	gpout_init();
- //   pwm_test();
-	hx711_init();
- //	hx711_test();
- 	qdec_init();
- 
-	/* thread starting*/
-    start_heartbeat();
-	// k_msleep(10);
-	// thread_info(); // get thread info for debugging
-	uart_interrupt_init();
-    start_uart_input();
-	// k_msleep(10);
-	// thread_info(); // get thread info for debugging
-	// printq_add("# main.c after start_uart_input\n");
-	start_hx711();
-	// k_msleep(10);
-	// thread_info(); // get thread info for debugging
-    start_control();
 
+	/* Peripheral initialization
+	 * Order matters: pwm_init() configures PC6-PC9, PB6-PB9, PA8-PA11 as
+	 * timer alternate-function pins.  solenoid_init() and i2c_adc_init() must
+	 * run AFTER pwm_init() so their GPIO config overrides the timer pin-mux
+	 * for pins now used as solenoid outputs (PC5-PC9, PA11-PA12, PB6) and
+	 * I2C1 (PB8-PB9).
+	 */
+	dac_init();       // AD5679R 16-ch SPI DAC
+	adc_init();       // internal ADC (channels that don't conflict with solenoids)
+	pwm_init();
+	solenoid_init();  // 8-ch solenoid GPIO — overrides TIM8/TIM4/TIM1 on shared pins
+	i2c_adc_init();   // ADS7830 I2C ADC — overrides TIM4 on PB8/PB9
+	i2c_adc_scan();
+	gpout_init();     // PC13 only (PA12 now owned by solenoid)
+	neopixel_init();  // WS2812 on PB1
+	hx711_init();
+	qdec_init();
+	motor_init();     // A4988 steppers M1-M5 — after adc/qdec so it owns PA0/PCx
+
+	/* thread starting*/
+	start_heartbeat();
+	uart_interrupt_init();
+	start_uart_input();
+	start_hx711();
+	start_control();
 	start_print_state();
-	k_msleep(250); // suspend main() to allow print to run 
-    thread_info(); // get thread info for debugging
-	//k_msleep(10);
-	//thread_info(); // get thread info for debugging
- 	k_msleep(4*SLEEP_TIME_MS); // wait to see what time threads have used
- 	thread_info(); // get thread info for debugging
-	// printq_add("# main.c after thread_info()\n");
+	k_msleep(250); // suspend main() to allow print to run
+	thread_info();
+	k_msleep(4*SLEEP_TIME_MS); // wait to see what time threads have used
+	thread_info();
 	printq_add("# STM32READY\n"); // python script should wait for this before starting
-	
+
 	while(1)
 	{	k_msleep(5*SLEEP_TIME_MS);  // just wait so other threads can run
-		
 	}
 }

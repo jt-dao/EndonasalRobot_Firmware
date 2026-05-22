@@ -96,11 +96,14 @@ void quad_inputs_init(void)
 	#ifdef DEBUG_PRINT1
 		printk("# initialize GPIOA using PA0 and PA1. err=%d ",err);
 	#endif
-// set up index bits for input
+// set up index bits for input. On the Endonasal SPI-DAC PCB, PB10/PB12 are
+// DAC SCK/SYNC and must not be remuxed after dac_init().
+#ifndef ENDONASAL_HAS_SPI_DAC
 	LL_GPIO_SetPinMode(GPIOB, QUAD3_INDEX, LL_GPIO_MODE_INPUT);
 	LL_GPIO_SetPinPull (GPIOB, QUAD3_INDEX, LL_GPIO_PULL_UP);
 	LL_GPIO_SetPinMode(GPIOB, QUAD5_INDEX, LL_GPIO_MODE_INPUT);
 	LL_GPIO_SetPinPull (GPIOB, QUAD5_INDEX, LL_GPIO_PULL_UP);
+#endif
 
 
 	#ifdef DEBUG_PRINT

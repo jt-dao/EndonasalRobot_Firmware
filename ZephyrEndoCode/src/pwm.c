@@ -110,14 +110,16 @@ void pwm_init(void)
     GPIO_InitStruct.Alternate = LL_GPIO_AF_9;
     LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-// Configure GPIOB pins for StepMotor1 and 2 direction and enable
+// Configure GPIOB pins for StepMotor1 and 2 direction and enable — conflicts with SPI2 MOSI/MISO
+// on Endonasal PCB (PB14/PB15). See ENDONASAL_HAS_SPI_DAC in common.h.
+#ifndef ENDONASAL_HAS_SPI_DAC
     GPIO_InitStruct.Pin = LL_GPIO_PIN_13 | LL_GPIO_PIN_14 | LL_GPIO_PIN_15;
     GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
-    // StepMotor1DirPin LL_GPIO_PIN_13, StepMotor2DirPin LL_GPIO_PIN_14, StepMotorEnablePin LL_GPIO_PIN_15
     LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
     LL_GPIO_ResetOutputPin(GPIOB, StepMotor1DirPin); // disable at initialize
     LL_GPIO_ResetOutputPin(GPIOB, StepMotor2DirPin);
     LL_GPIO_SetOutputPin(GPIOB, StepMotorFreePin); // disable at initialize (ENA=1 = free)
+#endif
 
 
     /* Configure TIM peripheral */
@@ -320,30 +322,38 @@ void generatePulses(int chan, int frequency)
             LL_TIM_SetPrescaler(TIM13, (uint32_t) prescaleValue);
             LL_TIM_SetAutoReload(TIM13, (uint32_t) autoReload);
             LL_TIM_OC_Init(TIM13, LL_TIM_CHANNEL_CH1, &tim_oc_init_struct);
+#ifndef ENDONASAL_HAS_SPI_DAC
             if (direction == 0)
                 LL_GPIO_SetOutputPin(GPIOB, StepMotor1DirPin);
             else
                 LL_GPIO_ResetOutputPin(GPIOB, StepMotor1DirPin);
+#endif
            break;
         case 2:     
             LL_TIM_SetPrescaler(TIM14, (uint32_t) prescaleValue);
             LL_TIM_SetAutoReload(TIM14, (uint32_t) autoReload);
             LL_TIM_OC_Init(TIM14, LL_TIM_CHANNEL_CH1, &tim_oc_init_struct);
+#ifndef ENDONASAL_HAS_SPI_DAC
             if (direction == 0)
                 LL_GPIO_SetOutputPin(GPIOB, StepMotor2DirPin);
             else
                 LL_GPIO_ResetOutputPin(GPIOB, StepMotor2DirPin);
+#endif
             break;
         default:
             printk("# generatePulses invalid channel %d\n",chan);
             break;
     }       
+#ifndef ENDONASAL_HAS_SPI_DAC
     LL_GPIO_ResetOutputPin(GPIOB, StepMotorFreePin); // enable only after frequency is set
+#endif
 }
 
 // set stepping motors to free (not energized)
 void stepOff(void)
 {
+#ifndef ENDONASAL_HAS_SPI_DAC
      LL_GPIO_SetOutputPin(GPIOB, StepMotorFreePin); // de-energize motore
+#endif
 }
 
