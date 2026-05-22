@@ -52,8 +52,10 @@ extern int32_t read_hx711(void);
 extern int32_t read_qdec3();
 extern int32_t read_qdec5();
 
-#define I2C_ADC_ADDR 0x48
-#define I2C_ADC_NUM_CH 8
+#define I2C_ADC_ADDR    0x48   // ADS7830 #1 → p_0..p_7
+#define I2C_ADC_ADDR2   0x49   // ADS7830 #2 → p_8..p_15
+#define I2C_ADC_NUM_CH  8      // channels per chip
+#define I2C_ADC_TOTAL_CH 16    // both chips combined
 static uint8_t i2c_adc_round_robin = 0;  // round-robin index for I2C ADC reads
 int32_t print_wait = PRINTWAIT;  // wait in time in ms
 // #define PRINT_INTERVAL 3000 // interval for printing state
@@ -99,12 +101,14 @@ void read_state()
         state_data.time_stamp = (float) time_start;
 
         // I2C ADC: read ONE channel per control loop iteration (round-robin)
-        // Each read is ~3ms (triple-read for mux settling). Reading all 8
-        // every loop would take ~24ms and stall the 1ms control loop.
-        // Full state vector refreshes every 8 iterations (~8ms at 1ms loop).
-        {   int val = i2c_adc_read_channel(I2C_ADC_ADDR, i2c_adc_round_robin);
-            state_data.adc[i2c_adc_round_robin] = (val >= 0) ? (uint16_t)val : 0;
-            i2c_adc_round_robin = (i2c_adc_round_robin + 1) % I2C_ADC_NUM_CH;
+        // across both ADS7830 chips. Each read is ~3ms (triple-read for mux
+        // settling). Indices 0-7 are chip 0x48, 8-15 are chip 0x49; the full
+        // 16-channel state vector refreshes every 16 iterations (~16ms).
+        {   uint8_t idx = i2c_adc_round_robin;
+            uint8_t addr = (idx < I2C_ADC_NUM_CH) ? I2C_ADC_ADDR : I2C_ADC_ADDR2;
+            int val = i2c_adc_read_channel(addr, idx % I2C_ADC_NUM_CH);
+            state_data.adc[idx] = (val >= 0) ? (uint16_t)val : 0;
+            i2c_adc_round_robin = (idx + 1) % I2C_ADC_TOTAL_CH;
         }
         
         // load cell
@@ -133,10 +137,12 @@ void print_state()
 // need to use lock so do not get partial (mixed) ints/floats
 
     snprintf(log, sizeof(log),
-            "t=%8.3f hx711=%d  qdec3,5 %6d%6d  i2c0-7 %5d%5d%5d%5d%5d%5d%5d%5d\n", 
+            "t=%8.3f hx711=%d  qdec3,5 %6d%6d  i2c0-15 %5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d\n",
              state_data.time_stamp,  state_data.hx711, state_data.qdec3, state_data.qdec5,
              state_data.adc[0], state_data.adc[1],state_data.adc[2],state_data.adc[3],
-             state_data.adc[4], state_data.adc[5], state_data.adc[6], state_data.adc[7]);
+             state_data.adc[4], state_data.adc[5], state_data.adc[6], state_data.adc[7],
+             state_data.adc[8], state_data.adc[9],state_data.adc[10],state_data.adc[11],
+             state_data.adc[12], state_data.adc[13], state_data.adc[14], state_data.adc[15]);
     printq_add(log);
 }
 
@@ -155,8 +161,10 @@ void print_state_thread()
               "t=","hx711","qdec3","qdec5");
     #else
     snprintf(log, sizeof(log),
-            "# %7s,%9s,%6s,%6s,%5s, %5s, %5s, %5s, %5s, %5s, %5s, %5s  \n",
-              "t=","hx711","qdec3","qdec5", "p_0","p_1","p_2", "p_3","p_4","p_5","p_6","p_7"); 
+            "# %7s,%9s,%6s,%6s,%5s, %5s, %5s, %5s, %5s, %5s, %5s, %5s, %5s, %5s, %5s, %5s, %5s, %5s, %5s, %5s\n",
+              "t=","hx711","qdec3","qdec5",
+              "p_0","p_1","p_2","p_3","p_4","p_5","p_6","p_7",
+              "p_8","p_9","p_10","p_11","p_12","p_13","p_14","p_15");
     #endif
     printq_add(log);
 
@@ -177,10 +185,12 @@ void print_state_thread()
              state_data1.time_stamp,  state_data1.hx711, state_data1.qdec3, state_data1.qdec5);
         #else
         snprintf(log, sizeof(log),
-            "%9.4f,%9d,%6d,%6d,%5d, %5d, %5d, %5d, %5d, %5d, %5d, %5d\n", 
+            "%9.4f,%9d,%6d,%6d,%5d, %5d, %5d, %5d, %5d, %5d, %5d, %5d, %5d, %5d, %5d, %5d, %5d, %5d, %5d, %5d\n",
              state_data1.time_stamp,  state_data1.hx711, state_data1.qdec3, state_data1.qdec5,
              state_data1.adc[0], state_data1.adc[1],state_data1.adc[2],state_data1.adc[3],
-             state_data1.adc[4], state_data1.adc[5], state_data1.adc[6], state_data1.adc[7]);
+             state_data1.adc[4], state_data1.adc[5], state_data1.adc[6], state_data1.adc[7],
+             state_data1.adc[8], state_data1.adc[9],state_data1.adc[10],state_data1.adc[11],
+             state_data1.adc[12], state_data1.adc[13], state_data1.adc[14], state_data1.adc[15]);
         #endif
         printq_add(log);
         k_msleep(print_wait); // should include execuion time of rest of this thread to make loop time accurate- maybe 2 ms?

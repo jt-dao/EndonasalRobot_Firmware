@@ -96,7 +96,7 @@ class StateStruct():
         self.hx711 = 0  # load cell
         self.qdec3 = 0  # quad decoder using timer 3
         self.qdec5 = 0  # quadrature decoder using timer 5
-        self.p_0 = 0   # I2C ADC ch0-7 (ADS7830, 0-255, 5V ref)
+        self.p_0 = 0   # I2C ADC ch0-7  — ADS7830 @ 0x48 (0-255, 5V ref)
         self.p_1 = 0
         self.p_2 = 0
         self.p_3 = 0
@@ -104,6 +104,14 @@ class StateStruct():
         self.p_5 = 0
         self.p_6 = 0
         self.p_7 = 0
+        self.p_8 = 0   # I2C ADC ch8-15 — ADS7830 @ 0x49
+        self.p_9 = 0
+        self.p_10 = 0
+        self.p_11 = 0
+        self.p_12 = 0
+        self.p_13 = 0
+        self.p_14 = 0
+        self.p_15 = 0
 
 
 def generate_pattern1(start, end, inc):
@@ -126,10 +134,12 @@ def convertI2CADC(raw):
     return raw / 255.0 * 5.0
 
 def convertGagePressureSmall(voltage):
-    if voltage != 0:
-        voltage = voltage/0.673
-        return (voltage-0.5)*15
-    else: return
+    """Map ADS7830 voltage to pressure using the lab-demo calibration.
+
+    The current new-PCB calibration is 0.5..4.5 V -> 0..60 PSI.
+    """
+    psi = (voltage - 0.5) / (4.5 - 0.5) * 60.0
+    return np.clip(psi, 0.0, 60.0)
 
 def setDisplacement(displacement, maxDis):
     pressure = displacement/maxDis*10+5
@@ -185,7 +195,7 @@ offset = 0
 def processLine(textLine,index):
     global offset
     newState = StateStruct()    
-    #  "t=","hx711","qdec3","qdec5", "p_0","p_1","p_2","p_3","p_4","p_5","p_6","p_7"
+    #  "t=","hx711","qdec3","qdec5", "p_0"..."p_15"
     data = textLine.split(',')  # split on comma
     # print('data ', data)
     # print('textline ', textLine)
@@ -214,6 +224,14 @@ def processLine(textLine,index):
         newState.p_5 = temp[9]
         newState.p_6 = temp[10]
         newState.p_7 = temp[11]
+        newState.p_8 = temp[12]
+        newState.p_9 = temp[13]
+        newState.p_10 = temp[14]
+        newState.p_11 = temp[15]
+        newState.p_12 = temp[16]
+        newState.p_13 = temp[17]
+        newState.p_14 = temp[18]
+        newState.p_15 = temp[19]
 
         stateQ.put(newState)
 
@@ -362,19 +380,41 @@ def input_thread(q_output):
             elif type == 'prnwait':
                 makeCmd('PRNWAIT', int(numericValues[0]))
             elif type == 'p':
+                # p              -> all 16, with a break between the two ADC chips
+                # p <chip>       -> all 8 sensors of that chip (chip 1 or 2)
+                # p <chip> <sen> -> one sensor (chip 1-2, sensor 1-8); both 1-indexed
                 if not stateQ.empty():
                     state = stateQ.get()
-                    print('t=%.3f  hx711=%d  qdec3=%d  qdec5=%d' % (state.time, state.hx711, state.qdec3, state.qdec5))
-                    channels = [int(numericValues[0])] if len(numericValues) >= 1 else range(8)
-                    for ch in channels:
-                        if ch < 0 or ch > 7:
-                            print('  p_%d: out of range (channels 0-7)' % ch)
-                            continue
-                        raw = getattr(state, 'p_%d' % ch)
+                    print('t=%.3f  hx711=%d  qdec3=%d  qdec5=%d'
+                          % (state.time, state.hx711, state.qdec3, state.qdec5))
+
+                    def show(flat):
+                        raw = getattr(state, 'p_%d' % flat)
                         volts = convertI2CADC(raw)
                         psi = convertGagePressureSmall(volts)
                         psi_str = '%.2f' % psi if psi is not None else 'N/A'
-                        print('  p_%d: raw=%3d  volts=%.3f  psi=%s' % (ch, raw, volts, psi_str))
+                        print('  ch%d s%d (p_%-2d): raw=%3d  volts=%.3f  psi=%s'
+                              % (flat // 8 + 1, flat % 8 + 1, flat, raw, volts, psi_str))
+
+                    if len(numericValues) >= 2:
+                        chip, sensor = int(numericValues[0]), int(numericValues[1])
+                        if chip in (1, 2) and 1 <= sensor <= 8:
+                            show((chip - 1) * 8 + (sensor - 1))
+                        else:
+                            print('usage: p <chip 1-2> <sensor 1-8>')
+                    elif len(numericValues) == 1:
+                        chip = int(numericValues[0])
+                        if chip in (1, 2):
+                            print('--- ADC channel %d ---' % chip)
+                            for s in range(8):
+                                show((chip - 1) * 8 + s)
+                        else:
+                            print('usage: p <chip 1-2> [sensor 1-8]')
+                    else:
+                        for chip in (1, 2):
+                            print('--- ADC channel %d ---' % chip)
+                            for s in range(8):
+                                show((chip - 1) * 8 + s)
                 else:
                     print('stateQ empty — no telemetry yet. Try: prnwait 100')
             elif type == 'start':
@@ -400,7 +440,8 @@ def writeFileHeader(dataFileName):
     date = str(today.tm_year)+'/'+str(today.tm_mon)+'/'+str(today.tm_mday)+'  '
     date = date + str(today.tm_hour) +':' + str(today.tm_min)+':'+str(today.tm_sec)
     fileout.write('"Data file recorded ' + date + '"\n')
-    fileout.write('" time  hx711, qdec3, qdec5, p_0, p_1, p_2, p_3, p_4, p_5, p_6, p_7"\n')
+    fileout.write('" time  hx711, qdec3, qdec5, p_0, p_1, p_2, p_3, p_4, p_5, p_6, p_7,'
+                  ' p_8, p_9, p_10, p_11, p_12, p_13, p_14, p_15"\n')
     fileout.close()
 
 # debug version- debugger has trouble with threads

@@ -27,7 +27,7 @@ SOFTWARE. */
 /* common definitions for controller code */
 #include <zephyr.h>
 // change this for longer lines in log file (allocated at compile time)
-#define TEXT_LINE_LENGTH 128 // allow 128 characters per log message
+#define TEXT_LINE_LENGTH 256 // allow 256 characters per log message (fits 16-ch telemetry)
 #define INPUT_CMD_LENGTH 8 // allow 7 characters + '\0' for text cmd+value
 
 /* 1000 msec = 1 sec */
@@ -49,7 +49,7 @@ struct cmd_struct_def {
 
 struct state_data_t {
     float time_stamp;
-    uint16_t adc[8];  // 8 I2C ADC channels (ADS7830 @ 0x48, 0-255 range)
+    uint16_t adc[16]; // 16 I2C ADC channels — ADS7830 @ 0x48 → 0-7, @ 0x49 → 8-15 (0-255 range)
     
     int32_t hx711;
     int32_t qdec3; // quadrature decoder using timer 3

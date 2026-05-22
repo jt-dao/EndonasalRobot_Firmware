@@ -46,11 +46,12 @@ static uint8_t adc_addr_count;
 
 /* Pressure sensor scaling
  * User-calibrated mapping:
- *   0..255 counts -> 0..60 PSI
- *   Example: 124/255 ~= 2.43V ~= 29.2 PSI (about mid-scale)
+ *   0.5..4.5 V -> 0..60 PSI
+ *   ADS7830 is 0..255 counts over 0..5 V, so 0.5 V ~= 25.5 counts
+ *   and 4.5 V ~= 229.5 counts.
  */
-#define PRESSURE_ZERO_COUNTS   0.0f
-#define PRESSURE_FULL_COUNTS   255.0f
+#define PRESSURE_ZERO_COUNTS   25.5f
+#define PRESSURE_FULL_COUNTS   229.5f
 #define PRESSURE_FS_PSI        60.0f
 #define ADC_VREF_V             5.0f
 
