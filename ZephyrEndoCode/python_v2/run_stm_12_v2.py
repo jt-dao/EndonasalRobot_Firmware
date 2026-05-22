@@ -365,7 +365,11 @@ def input_thread(q_output):
                 if not stateQ.empty():
                     state = stateQ.get()
                     print('t=%.3f  hx711=%d  qdec3=%d  qdec5=%d' % (state.time, state.hx711, state.qdec3, state.qdec5))
-                    for ch in range(8):
+                    channels = [int(numericValues[0])] if len(numericValues) >= 1 else range(8)
+                    for ch in channels:
+                        if ch < 0 or ch > 7:
+                            print('  p_%d: out of range (channels 0-7)' % ch)
+                            continue
                         raw = getattr(state, 'p_%d' % ch)
                         volts = convertI2CADC(raw)
                         psi = convertGagePressureSmall(volts)

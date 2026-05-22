@@ -26,7 +26,7 @@ west build -b nucleo_f446re && west flash
 Python (from repo root; port auto-detect in `find_port.py`):
 
 ```bash
-cd ZephyrEndoCode/python_v2 && python run_stm_v2.py
+cd ZephyrEndoCode/python_v2 && python run_stm_12_v2.py
 ```
 
 See **`DEMO_README.md`** for the interactive prompt, handshake notes, and troubleshooting.
@@ -37,7 +37,7 @@ See **`DEMO_README.md`** for the interactive prompt, handshake notes, and troubl
 
 ```
 Python host (230400 baud)
-  │  sends: PWM1-12, SOL1-8, OUTON/OFF, DAC, DACCH, ESTOP, PRNWAIT, PFRQ1/2, STEPOFF
+  │  sends: PWM1-12, SOL1-8, OUTON/OFF, DAC, DACCH, ESTOP, PRNWAIT, PFRQ1/2, STEPOFF, M
   │  receives: "# STM32READY", state lines (t=,hx711,qdec3,qdec5,p_0..p_7)
   ▼
 STM32F446RE (Zephyr RTOS)
@@ -56,7 +56,8 @@ STM32F446RE (Zephyr RTOS)
   ├── read_qdec.c         → quadrature decoders (timer 3/5)
   ├── timing.c            → get_time(), get_time_float()
   ├── heartbeat.c         → LED heartbeat
-  └── neopixel.c          → WS2812 (PB1), heat-map of DAC ch0-15 pressure levels
+  ├── neopixel.c          → WS2812 (PB1), heat-map of DAC ch0-15 pressure levels
+  └── motor.c             → A4988 stepper drivers, motors M1-M5
 ```
 
 ---
@@ -100,6 +101,21 @@ STM32F446RE (Zephyr RTOS)
 - Refreshes at ~10 Hz from the control thread
 - Mode 1 (DAC status) is the default on boot
 
+### Steppers — A4988 (motor.c)
+
+Shared active-low enable: **EN = PA0**. Pins per `include/pinouts-10-2.txt`.
+
+| Motor | STEP | DIR |
+|-------|------|-----|
+| M1 | PB7 | PC11 |
+| M2 | PC13 | PC10 |
+| M3 | PB0 | PC12 |
+| M4 | PC2 | PC1 |
+| M5 | PC0 | PC3 |
+
+- Driven via LL GPIO (push-pull, low slew); `motor_init()` overrides the analog mode `adc_init()` leaves on the shared PCx pins.
+- One rotation = 200 step pulses at a 500µs half-period (~1 kHz). Continuous mode is advanced by `motor_periodic()` in the control loop.
+
 ---
 
 ## Serial Commands (Python → STM32)
@@ -115,6 +131,7 @@ STM32F446RE (Zephyr RTOS)
 | `PFRQ1` / `PFRQ2` | `PFRQ1 500` | Stepper pulse frequency |
 | `STEPOFF` | `STEPOFF 0` | Steppers off |
 | `NEOPIX` | `NEOPIX 1` | LED mode: 0=off, 1=DAC status (default), 2=rainbow |
+| `M` | `M 51` | Stepper M1-M5; value = motor×10 + mode (0=off, 1=one rotation, 2=continuous). Host `m 5 1` → `M 51` |
 
 ## Testing the NeoPixel DAC Status Display
 
@@ -200,7 +217,7 @@ ESTOP 0        → all outputs off, all LEDs clear
 
 - `p_0`–`p_7`: **ADS7830** @ **0x48**, **8-bit** raw (**0–255**), **5 V** VREF.
 - **`read_state()`** updates **one** I2C channel per **1 ms** control iteration (**round-robin**); the full set **`p_0`…`p_7`** advances every ~**8 ms**, not a single simultaneous snapshot.
-- Python **`python_v2/run_stm_v2.py`** maps columns into **`p_0`…`p_7`**. Legacy **`python/run_stm.py`** used **`adc8`…`adc15`** for **internal ADC** semantics — **do not reuse old scaling**.
+- Python **`python_v2/run_stm_12_v2.py`** maps columns into **`p_0`…`p_7`**. Legacy **`python/run_stm.py`** used **`adc8`…`adc15`** for **internal ADC** semantics — **do not reuse old scaling**.
 
 ---
 
@@ -208,7 +225,7 @@ ESTOP 0        → all outputs off, all LEDs clear
 
 | Mode | PlatformIO env | Main sources |
 |------|----------------|--------------|
-| **Python integration** | **`pio run -e python`** | `src/main.c` (+ UART cmd queue, `run_stm_v2.py`) |
+| **Python integration** | **`pio run -e python`** | `src/main.c` (+ UART cmd queue, `run_stm_12_v2.py`) |
 | **Lab demo menu** | **`pio run -e lab_demo`** | `src/main_lab_demo.c` (see `platformio.ini` **`src_filter`**) |
 
 Switch by **re-flashing** the env above; no need to rename `main.c` unless you maintain a custom CMake flow outside PlatformIO.
@@ -245,7 +262,7 @@ Order is **intentional**: **`pwm_init()`** first configures timer alternate-func
 7. **`i2c_adc_init()`** + **`i2c_adc_scan()`** — ADS7830 on **I2C1**  
 8. **`gpout_init()`** — **PC13**  
 9. **`neopixel_init()`** — **PB1**  
-10. **`hx711_init()`**, **`qdec_init()`**  
+10. **`hx711_init()`**, **`qdec_init()`**, **`motor_init()`** — `motor_init()` runs last so it owns PA0/PCx after `adc_init`/`qdec_init`  
 11. Threads: **`uart_interrupt_init`**, **`start_uart_input`**, **`start_hx711`**, **`start_control`**, **`start_print_state`**, etc.  
 12. **`printq_add("# STM32READY\n")`** after brief delays — Python host should sync after reset as described in **`DEMO_README.md`**
 
@@ -258,3 +275,4 @@ Order is **intentional**: **`pwm_init()`** first configures timer alternate-func
 | PC8 | gpout Output2 (commented out) | SOL2 | Already disabled in old code |
 | PC9 | gpout Output3 (commented out) | SOL1 | Already disabled in old code |
 | PB1 | Internal ADC IN9 | Neopixel data | `neopixel_init()` now called in Python mode; no ADC conflict |
+| PA0 | `read_qdec.c` TIM5 encoder input | Stepper shared enable (EN, motor.c) | `motor_init()` runs after `qdec_init()` and claims PA0 as the A4988 EN; quadrature on PA0 is disabled — matches `pinouts-10-2.txt` (PA0 = EN_x) |
