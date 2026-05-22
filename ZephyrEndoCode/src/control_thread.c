@@ -63,13 +63,16 @@ extern void stepOff(void);
 extern void digitalOutputOff(uint32_t);
 extern void digitalOutputOn(uint32_t);
 extern void set_dac(int);
+extern void set_dac_channel(uint8_t channel, int value);
 extern uint16_t read_adc(int);
-// extern int32_t read_hx711(void);
-// extern int32_t read_qdec3();
-// extern int32_t read_qdec5();
+extern void set_solenoid(uint8_t channel, uint8_t state);
+extern void neopixel_set_mode(uint8_t mode);
+extern void neopixel_periodic(void);
 extern void read_state(void);
 extern void print_state(void);
 extern int32_t print_wait; // delay time
+extern void motor_cmd(int motor, int mode);
+extern void motor_periodic(void);
 
 // control thread define
 K_THREAD_STACK_DEFINE(control_stack_area, STACKSIZE);
@@ -91,7 +94,7 @@ void parse_cmd(char *, int);
 
 void estop(void);
 
-// turn all PWM and motors off
+// turn all PWM, solenoids, motors, and DAC outputs off
 void estop()
 { 
     generatePulses(1, (int) 0); 
@@ -110,6 +113,12 @@ void estop()
     set_pwm(11, (uint32_t) 0);
     set_pwm(12, (uint32_t) 0);
 #endif
+    for (int i = 1; i <= 8; i++) {
+        set_solenoid(i, 0);
+    }
+    for (int i = 0; i < 16; i++) {
+        set_dac_channel((uint8_t)i, 0);
+    }
 }
 
 
@@ -130,11 +139,14 @@ void start_control()
 }
 
 
+static uint8_t dac_auto = 0; // 1 = cosine test wave on DAC ch0, 0 = Python/manual commands own DAC
+
 void control_thread()
 {   uint32_t time_stamp; // should be 64 bits
     char log[TEXT_LINE_LENGTH];
     int control; // control output
     struct cmd_struct_def cmd_struct; // local copy
+    uint32_t neo_tick = 0;
 
     k_msleep(100); // some delay before starting control thread
     // give lower priority threads chance to run?
@@ -160,10 +172,14 @@ void control_thread()
         #endif
         
         k_msleep(1);
-        // time_stamp = get_time();
         read_state();
-        control=(int)  1000*(1 + cos(2*PI*FREQ*state_data.time_stamp));
-        set_dac(control);
+        if (dac_auto) {
+            control=(int)  1000*(1 + cos(2*PI*FREQ*state_data.time_stamp));
+            set_dac(control);
+        }
+
+        if (++neo_tick >= 50) { neopixel_periodic(); neo_tick = 0; }
+        motor_periodic();  // advances a motor running in continuous mode
 
         // avoid any print within main control loop
        
@@ -238,15 +254,81 @@ void parse_cmd(char command[], int value)
     {    set_pwm(12, (uint32_t) value);return; }
  #endif
     if (strcmp(ucommand, "DAC") == 0)
-    {    set_dac(value); return;}
+    {    dac_auto = 0; set_dac(value); return;}
+    if(strcmp(ucommand,"DAC1") == 0)
+    {    dac_auto = 0; set_dac_channel(0, value); return; }
+    if(strcmp(ucommand,"DAC2") == 0)
+    {    dac_auto = 0; set_dac_channel(1, value); return; }
+    if(strcmp(ucommand,"DAC3") == 0)
+    {    dac_auto = 0; set_dac_channel(2, value); return; }
+    if(strcmp(ucommand,"DAC4") == 0)
+    {    dac_auto = 0; set_dac_channel(3, value); return; }
+    if(strcmp(ucommand,"DAC5") == 0)
+    {    dac_auto = 0; set_dac_channel(4, value); return; }
+    if(strcmp(ucommand,"DAC6") == 0)
+    {    dac_auto = 0; set_dac_channel(5, value); return; }
+    if(strcmp(ucommand,"DAC7") == 0)
+    {    dac_auto = 0; set_dac_channel(6, value); return; }
+    if(strcmp(ucommand,"DAC8") == 0)
+    {    dac_auto = 0; set_dac_channel(7, value); return; }
+    if(strcmp(ucommand,"DAC9") == 0)
+    {    dac_auto = 0; set_dac_channel(8, value); return; }
+    if(strcmp(ucommand,"DAC10") == 0)
+    {    dac_auto = 0; set_dac_channel(9, value); return; }
+    if(strcmp(ucommand,"DAC11") == 0)
+    {    dac_auto = 0; set_dac_channel(10, value); return; }
+    if(strcmp(ucommand,"DAC12") == 0)
+    {    dac_auto = 0; set_dac_channel(11, value); return; }
+    if(strcmp(ucommand,"DAC13") == 0)
+    {    dac_auto = 0; set_dac_channel(12, value); return; }
+    if(strcmp(ucommand,"DAC14") == 0)
+    {    dac_auto = 0; set_dac_channel(13, value); return; }
+    if(strcmp(ucommand,"DAC15") == 0)
+    {    dac_auto = 0; set_dac_channel(14, value); return; }
+    if(strcmp(ucommand,"DAC16") == 0)
+    {    dac_auto = 0; set_dac_channel(15, value); return; }
     if (strcmp(ucommand, "ADC") == 0)
-    {    read_adc(8); return;}              // should extend to choose channel
+    {    read_adc(8); return;}
     if (strcmp(ucommand, "OUTOFF") == 0)
     {   digitalOutputOff((uint32_t) value);
         return; }
     if (strcmp(ucommand, "OUTON") == 0)
     {   digitalOutputOn((uint32_t) value);
         return;}
+    if(strcmp(ucommand,"SOL1") == 0)
+    {    set_solenoid(1, (uint8_t) value); return; }
+    if(strcmp(ucommand,"SOL2") == 0)
+    {    set_solenoid(2, (uint8_t) value); return; }
+    if(strcmp(ucommand,"SOL3") == 0)
+    {    set_solenoid(3, (uint8_t) value); return; }
+    if(strcmp(ucommand,"SOL4") == 0)
+    {    set_solenoid(4, (uint8_t) value); return; }
+    if(strcmp(ucommand,"SOL5") == 0)
+    {    set_solenoid(5, (uint8_t) value); return; }
+    if(strcmp(ucommand,"SOL6") == 0)
+    {    set_solenoid(6, (uint8_t) value); return; }
+    if(strcmp(ucommand,"SOL7") == 0)
+    {    set_solenoid(7, (uint8_t) value); return; }
+    if(strcmp(ucommand,"SOL8") == 0)
+    {    set_solenoid(8, (uint8_t) value); return; }
+    if (strcmp(ucommand, "DACCH") == 0)
+    {    dac_auto = 0; set_dac_channel((uint8_t)(value >> 16), value & 0xFFFF); return; }
+    if (strcmp(ucommand, "DACTEST") == 0)
+    {
+        dac_auto = 0;
+        if (value == 0) {
+            for (int i = 0; i < 16; i++) set_dac_channel((uint8_t)i, 0);
+        } else if (value == 1) {
+            for (int i = 0; i < 16; i++) set_dac_channel((uint8_t)i, 32768);
+        } else if (value == 2) {
+            for (int i = 0; i < 16; i++) set_dac_channel((uint8_t)i, 65535);
+        } else {
+            for (int i = 0; i < 16; i++) set_dac_channel((uint8_t)i, (uint16_t)(i * 4369));
+        }
+        return;
+    }
+    if (strcmp(ucommand, "DACAUTO") == 0)
+    {    dac_auto = (value != 0); return; }
     if (strcmp(ucommand, "PRNWAIT") == 0)
     {    snprintf(log, sizeof(log),"# PRNWAIT changed from %d to %d ms \n",
          print_wait, value);
@@ -254,6 +336,22 @@ void parse_cmd(char command[], int value)
          print_wait = value;
          return;
     }              // should extend to choose channel
+    if (strcmp(ucommand, "NEOPIX") == 0)
+    {    neopixel_set_mode((uint8_t) value); return; }
+    if (strcmp(ucommand, "M") == 0)
+    {   /* serial parser merges "m 1 2" into value=12; decode the two digits */
+        int mot  = value / 10;
+        int mode = value % 10;
+        if (mot < 1 || mot > 5 || mode > 2) {
+            snprintf(log, sizeof(log),
+                     "# M: bad args (use m <1-5> <0=off|1=rotate|2=cont>)\n");
+        } else {
+            motor_cmd(mot, mode);
+            snprintf(log, sizeof(log),"# M%d mode=%d\n", mot, mode);
+        }
+        printq_add(log);
+        return;
+    }
 
     // if no successful message send error to log
     snprintf(log, sizeof(log),"# parse_cmd %s unrecognized\n", ucommand); 
@@ -265,5 +363,3 @@ void parse_cmd(char command[], int value)
     {   run_control(); }
     */
 }
-
-

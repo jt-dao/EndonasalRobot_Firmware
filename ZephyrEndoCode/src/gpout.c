@@ -36,80 +36,55 @@ outputs are configured using push-pull (active high and active low)
 void gpout_int(void);
 void digitalOutputOff(uint32_t);
 void digitalOutputOn(uint32_t);
+extern void set_solenoid(uint8_t channel, uint8_t state);
 
 
 void gpout_init(void)
 {
 /* Enable GPIO clock */
-    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOA);
- //   LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOB);
+    // PA12 is now managed by solenoid.c (SOL5) — do NOT configure here
     LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOC);
 
     LL_GPIO_InitTypeDef GPIO_InitStruct;
-// Configure GPIOA PA12 for Output1Pin
-    GPIO_InitStruct.Pin = LL_GPIO_PIN_12;
-    GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
-    GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
-    LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-    LL_GPIO_ResetOutputPin(GPIOA, Output1Pin); // disable at initialize
 
-// Configure GPIOC pins 
-// also PC8, PC9, PC13 for output 
-  //  GPIO_InitStruct.Pin = LL_GPIO_PIN_8 | LL_GPIO_PIN_9 | LL_GPIO_PIN_13;
-  // ENDONASAL
+    // PC13 output 4 (only remaining gpout pin on new PCB)
     GPIO_InitStruct.Pin =  LL_GPIO_PIN_13;
     GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
     GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
     LL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-  // ENDONASAL  
- //   LL_GPIO_ResetOutputPin(GPIOC, Output2Pin); // disable at initialize
- //   LL_GPIO_ResetOutputPin(GPIOC, Output3Pin); // disable at initialize
-    LL_GPIO_ResetOutputPin(GPIOC, Output4Pin); // disable at initialize
+    LL_GPIO_ResetOutputPin(GPIOC, Output4Pin);
 
     #ifdef DEBUG_PRINT
-//    printk("# End GP Output init. PA12 PC8 PC9 PC13\n");
-    printk("# End GP Output init. PA12 PC13\n");
+    printk("# End GP Output init. PC13 (PA12 owned by solenoid)\n");
     #endif
 }
 
 
-// general output bits (used for solenoid valves)
+// general output bits — PA12 redirects to solenoid 5 on new PCB
 void digitalOutputOn(uint32_t value)
 {   switch(value)
     {   case 1:
-            LL_GPIO_SetOutputPin(GPIOA, Output1Pin);
-            break;
-        case 99:
- //           LL_GPIO_SetOutputPin(GPIOC, Output2Pin);
-            break;
-        case 100:
- //           LL_GPIO_SetOutputPin(GPIOC, Output3Pin);
+            set_solenoid(5, 1);  // PA12 = SOL5 on new PCB
             break;
         case 4:
             LL_GPIO_SetOutputPin(GPIOC, Output4Pin);
             break;
         default: 
             printk("invalid channel for DigitalOutputOn\n");
-            break;  // ignore if out of range
+            break;
     }
 }
-// general output bits (used for solenoid valves)
+
 void digitalOutputOff(uint32_t value)
 {   switch(value)
     {   case 1:
-            LL_GPIO_ResetOutputPin(GPIOA, Output1Pin);
-            break;
-        case 99:
-//            LL_GPIO_ResetOutputPin(GPIOC, Output2Pin);
-            break;
-        case 100:
- //           LL_GPIO_ResetOutputPin(GPIOC, Output3Pin);
+            set_solenoid(5, 0);  // PA12 = SOL5 on new PCB
             break;
         case 4:
             LL_GPIO_ResetOutputPin(GPIOC, Output4Pin);
             break;
         default: 
             printk("invalid channel for DigitalOutputOff\n");
-            break;  // ignore if out of range
+            break;
     }
 }

@@ -47,9 +47,14 @@ extern float get_time_float(void);
 extern uint32_t get_time(void);
 extern void printq_add(char *);
 extern uint16_t read_adc(int);
+extern int i2c_adc_read_channel(uint8_t addr, uint8_t ch);
 extern int32_t read_hx711(void);
 extern int32_t read_qdec3();
 extern int32_t read_qdec5();
+
+#define I2C_ADC_ADDR 0x48
+#define I2C_ADC_NUM_CH 8
+static uint8_t i2c_adc_round_robin = 0;  // round-robin index for I2C ADC reads
 int32_t print_wait = PRINTWAIT;  // wait in time in ms
 // #define PRINT_INTERVAL 3000 // interval for printing state
 
@@ -93,9 +98,14 @@ void read_state()
         time_start = get_time_float();  // in sec
         state_data.time_stamp = (float) time_start;
 
-        // 8 analog to digital converter channels
-        for (channel = 8; channel <= 15; channel++)
-        {   state_data.adc[channel-8] = read_adc(channel); }
+        // I2C ADC: read ONE channel per control loop iteration (round-robin)
+        // Each read is ~3ms (triple-read for mux settling). Reading all 8
+        // every loop would take ~24ms and stall the 1ms control loop.
+        // Full state vector refreshes every 8 iterations (~8ms at 1ms loop).
+        {   int val = i2c_adc_read_channel(I2C_ADC_ADDR, i2c_adc_round_robin);
+            state_data.adc[i2c_adc_round_robin] = (val >= 0) ? (uint16_t)val : 0;
+            i2c_adc_round_robin = (i2c_adc_round_robin + 1) % I2C_ADC_NUM_CH;
+        }
         
         // load cell
         state_data.hx711 = read_hx711();
@@ -123,7 +133,7 @@ void print_state()
 // need to use lock so do not get partial (mixed) ints/floats
 
     snprintf(log, sizeof(log),
-            "t=%8.3f hx711=%d  qdec3,5 %6d%6d  adc8-15 %5d%5d%5d%5d%5d%5d%5d%5d\n", 
+            "t=%8.3f hx711=%d  qdec3,5 %6d%6d  i2c0-7 %5d%5d%5d%5d%5d%5d%5d%5d\n", 
              state_data.time_stamp,  state_data.hx711, state_data.qdec3, state_data.qdec5,
              state_data.adc[0], state_data.adc[1],state_data.adc[2],state_data.adc[3],
              state_data.adc[4], state_data.adc[5], state_data.adc[6], state_data.adc[7]);
@@ -146,7 +156,7 @@ void print_state_thread()
     #else
     snprintf(log, sizeof(log),
             "# %7s,%9s,%6s,%6s,%5s, %5s, %5s, %5s, %5s, %5s, %5s, %5s  \n",
-              "t=","hx711","qdec3","qdec5", "adc8","adc9","adc10", "adc11","adc12","adc13","adc14","adc15"); 
+              "t=","hx711","qdec3","qdec5", "p_0","p_1","p_2", "p_3","p_4","p_5","p_6","p_7"); 
     #endif
     printq_add(log);
 

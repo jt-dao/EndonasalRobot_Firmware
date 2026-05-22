@@ -1,10 +1,12 @@
-# MRIRobotProject
-repo for Zephyr sample code, showing threads, queues, non-blocking print, logging, etc
-Be sure to see file pinouts-IO.txt for all the pins used on STM32F4 nucleo F446RE board.
+# MRIRobotProject (ZephyrEndoCode)
 
-See code block diagram in ./Doc
+Zephyr sample code: threads, queues, non-blocking print, logging. Pin usage is summarized under `include/` (e.g. `pinouts-10-2.txt`). Diagrams may live under `Doc/` when present.
 
-### Using STM32 with python:
+**New PCB / daily workflow:** use **`python_v2/`**, **`pio run -e python`**, and read **`DEMO_README.md`** and **`NEW_PCB_README.md`** in this folder before relying on the steps below.
+
+---
+
+### Legacy workflow — STM32 with Python (pre–python_v2)
 1. plug in stm32 board, and upload compiled ZephyrSampleCode to board
 2. note USB COM port (windows) or dev/USB on Ubuntu/MacOS  (230.4 kBaud)
 3. edit control-record.py to set appropriate port: ser = serial.Serial('COM3')
@@ -45,7 +47,7 @@ See code block diagram in ./Doc
 
 
 #### Setup/Modification (c code)
-* platformio.ini: monitor_speed = 115200
+* `platformio.ini`: **`monitor_speed = 230400`** for current Nucleo integration (older notes may say 115200)
 * ./include/common.h: INPUT_CMD_LENGTH 8, limits commands to 7 characters, and command value to 7 digits (no negative numbers)
 * /include/common.h: #define PRINTWAIT 5000, initial state printing update (actual state updates are at 1 kHz). Send command PRNWAIT [tme in ms] to change this from Python after starting.
 * to reduce number of debugging messages, recompile without /include/common.h: #define DEBUG_PRINT
